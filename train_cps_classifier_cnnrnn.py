@@ -106,9 +106,12 @@ class_counts = np.bincount(y_train.numpy(), minlength=num_classes)
 safe_counts = np.where(class_counts == 0, 1, class_counts)
 weights_tensor = torch.tensor(len(y_train) / (num_classes * safe_counts), dtype=torch.float32)
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'mps' if torch.backends.mps.is_available() else 'cpu')
+print(f"Using device: {device}")
+
 # 6. BASELINE MODEL: CONV1D + LSTM/GRU
 class GlobalConvRNNClassifier(nn.Module):
-    def __init__(self, input_dim, hidden_dim=128, num_classes=6, rnn_type='GRU'):
+    def __init__(self, input_dim, hidden_dim=128, num_classes=6, rnn_type='LSTM'):
         super(GlobalConvRNNClassifier, self).__init__()
         
         # Spatial Feature Extraction
@@ -157,7 +160,8 @@ class GlobalConvRNNClassifier(nn.Module):
         return out
 
 # Initialize with LSTM by default (change to 'GRU' if desired)
-model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='GRU')
+model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='GRU').to(device)
+weights_tensor = weights_tensor.to(device)
 criterion = nn.CrossEntropyLoss(weight=weights_tensor)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
 
@@ -166,13 +170,14 @@ epochs = 30
 best_val_loss = float('inf')
 best_model_state = None
 
-print(f"\nTraining Baseline Conv1D+GRU on {len(X_train)} full sequences...")
+print(f"\nTraining Baseline Conv1D+LSTM on {len(X_train)} full sequences...")
 
 for epoch in range(epochs):
     model.train()
     train_loss, train_correct, train_total = 0, 0, 0
     
     for batch_X, batch_y in train_loader:
+        batch_X, batch_y = batch_X.to(device), batch_y.to(device)
         optimizer.zero_grad()
         outputs = model(batch_X)
         loss = criterion(outputs, batch_y)
@@ -188,6 +193,7 @@ for epoch in range(epochs):
     val_loss, val_correct, val_total = 0, 0, 0
     with torch.no_grad():
         for batch_X, batch_y in val_loader:
+            batch_X, batch_y = batch_X.to(device), batch_y.to(device)
             outputs = model(batch_X)
             loss = criterion(outputs, batch_y)
             val_loss += loss.item() * batch_X.size(0)
@@ -218,6 +224,7 @@ all_preds, all_labels = [], []
 
 with torch.no_grad():
     for batch_X, batch_y in test_loader:
+        batch_X, batch_y = batch_X.to(device), batch_y.to(device)
         outputs = model(batch_X)
         _, predicted = torch.max(outputs, 1)
         all_preds.extend(predicted.numpy())
@@ -225,7 +232,7 @@ with torch.no_grad():
 
 target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias Attack', 'ZD Attack']
 
-print("\n=== BASELINE CLASSIFICATION REPORT (CNN+GRU) ===")
+print("\n=== BASELINE CLASSIFICATION REPORT (CNN+LSTM) ===")
 print(classification_report(all_labels, all_preds, target_names=target_names))
 print("\n=== CONFUSION MATRIX ===")
 print(pd.DataFrame(confusion_matrix(all_labels, all_preds), index=target_names, columns=target_names))
