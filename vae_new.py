@@ -6,9 +6,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import classification_report, confusion_matrix
 
+# ==========================================
 # 1. SETUP & UNIFIED DATA LOADING
+# ==========================================
 print("Loading Unified Dataset...")
 filename = 'TTC_Unified_Dataset.xlsx'
 
@@ -27,7 +30,9 @@ full_df['Label_ID'] = full_df['Attack_Type'].map(label_map)
 full_df = full_df.dropna(subset=['Label_ID'])
 full_df['Label_ID'] = full_df['Label_ID'].astype(int)
 
+# ==========================================
 # 2. FEATURE ENGINEERING
+# ==========================================
 print("Engineering cumulative, derivative, and centered features...")
 
 baseline_df = full_df[full_df['Time_Step'] < 20].groupby(['Run_ID', 'Attack_Type'])['y_k'].mean().reset_index()
@@ -46,13 +51,17 @@ feature_cols = [
     'ACF_Energy', 'CUSUM_r'
 ]
 
+# ==========================================
 # 3. DYNAMIC GRACE PERIOD RELABELING
+# ==========================================
 print("Applying physical grace period logic...")
 full_df.loc[full_df['Time_Step'] < 20, 'Label_ID'] = 0
 slow_attack_mask = full_df['Attack_Type'].isin(['Replay Attack', 'Covert Attack'])
 full_df.loc[slow_attack_mask & (full_df['Time_Step'] < 35), 'Label_ID'] = 0
 
+# ==========================================
 # 4. GROUP-BASED SPLITTING & SCALING 
+# ==========================================
 total_runs = int(full_df['Run_ID'].max())
 train_end, val_end = int(total_runs * 0.70), int(total_runs * 0.85)
 
@@ -72,7 +81,9 @@ test_df[feature_cols]  = scaler.transform(test_df[feature_cols])
 # *** CRITICAL VAE CHANGE: Filter Training Data to Nominal ONLY ***
 train_df_nominal = train_df[train_df['Label_ID'] == 0].copy()
 
+# ==========================================
 # 5. TEMPORAL SLIDING WINDOW SEQUENCE GENERATION
+# ==========================================
 def create_sequences(df, window_size):
     X, y = [], []
     for _, group in df.groupby(['Run_ID', 'Attack_Type']):
@@ -92,7 +103,9 @@ train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=64, shuffl
 val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=64, shuffle=False)
 test_loader  = DataLoader(TensorDataset(X_test, y_test), batch_size=64, shuffle=False)
 
+# ==========================================
 # 6. NEURAL NETWORK SPECIFICATION (VAE)
+# ==========================================
 class TemporalAttention(nn.Module):
     def __init__(self, hidden_dim):
         super(TemporalAttention, self).__init__()
@@ -138,7 +151,6 @@ class AttentionVAE(nn.Module):
         return mu + eps * std
 
     def forward(self, x):
-        # 1. Encode
         encoded = x.transpose(1, 2)
         encoded = self.relu(self.bn1(self.conv1(encoded)))
         encoded = self.relu(self.bn2(self.conv2(encoded)))
@@ -147,24 +159,19 @@ class AttentionVAE(nn.Module):
         gru_out, _ = self.encoder_gru(encoded)
         context, _ = self.attention(gru_out)
         
-        # 2. Get Distribution & Sample
         mu = self.fc_mu(context)
         logvar = self.fc_logvar(context)
         z = self.reparameterize(mu, logvar)
         
-        # 3. Decode (Repeat z across time steps)
-        z_repeated = z.unsqueeze(1).repeat(1, self.seq_len, 1) # [batch, 35, 32]
+        z_repeated = z.unsqueeze(1).repeat(1, self.seq_len, 1) 
         dec_out, _ = self.decoder_gru(z_repeated)
-        reconstruction = self.decoder_fc(dec_out) # [batch, 35, 15]
+        reconstruction = self.decoder_fc(dec_out) 
         
         return reconstruction, mu, logvar
 
 def vae_loss_function(reconstruction, x, mu, logvar):
-    # Mean Squared Error for reconstructing the physics
     recon_loss = F.mse_loss(reconstruction, x, reduction='sum')
-    # KL Divergence to force standard normal distribution
     kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
-    # Average over batch size
     batch_size = x.size(0)
     return (recon_loss + kl_loss) / batch_size, recon_loss / batch_size, kl_loss / batch_size
 
@@ -172,7 +179,9 @@ def vae_loss_function(reconstruction, x, mu, logvar):
 model = AttentionVAE(input_dim=len(feature_cols), hidden_dim=96, latent_dim=32)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
 
+# ==========================================
 # 7. UNSUPERVISED TRAINING LOOP
+# ==========================================
 epochs = 15
 best_val_loss = float('inf')
 best_model_state = None
@@ -183,7 +192,7 @@ for epoch in range(epochs):
     model.train()
     train_loss, train_recon, train_kl = 0, 0, 0
     
-    for batch_X, _ in train_loader: # Labels ignored during training
+    for batch_X, _ in train_loader:
         optimizer.zero_grad()
         
         reconstruction, mu, logvar = model(batch_X)
@@ -196,7 +205,6 @@ for epoch in range(epochs):
         train_recon += recon.item() * batch_X.size(0)
         train_kl += kl.item() * batch_X.size(0)
         
-    # Validation
     model.eval()
     val_loss = 0
     with torch.no_grad():
@@ -216,55 +224,95 @@ for epoch in range(epochs):
         best_val_loss = avg_val_loss
         best_model_state = model.state_dict().copy()
 
-# 8. ANOMALY DETECTION INFERENCE (THRESHOLDING)
-print("\nExecuting final evaluation on Test Set...")
+# ==========================================
+# 8. MCSS-VAE INFERENCE (GAMMA EQUATION & LATENT DETECTORS)
+# ==========================================
+print("\nExecuting final evaluation using MCSS-VAE Logic...")
 model.load_state_dict(best_model_state)
 model.eval()
 
-# Step A: Find the optimal threshold using the Validation Set
-val_mse_scores = []
-val_binary_labels = []
+# --- PHASE 2: GENERATE ARTIFICIAL IMMUNE DETECTORS (CENTROIDS) ---
+print("\nPhase 2: Generating Artificial Immune Detectors (Class Centroids)...")
+latent_vectors = {1: [], 2: [], 3: [], 4: [], 5: []} 
 
 with torch.no_grad():
     for batch_X, batch_y in val_loader:
-        reconstruction, _, _ = model(batch_X)
-        # Calculate MSE per sequence
-        mse_per_seq = torch.mean((batch_X - reconstruction)**2, dim=[1, 2]).numpy()
-        val_mse_scores.extend(mse_per_seq)
+        _, mu, _ = model(batch_X)
+        for i in range(len(batch_y)):
+            label = batch_y[i].item()
+            if label != 0: # Only map anomalies
+                latent_vectors[label].append(mu[i].numpy())
+
+class_detectors = {}
+for label, vecs in latent_vectors.items():
+    if len(vecs) > 0:
+        class_detectors[label] = np.mean(vecs, axis=0)
         
-        # Convert multiclass to binary (0 = Nominal, 1 = Any Attack)
-        binary_y = (batch_y.numpy() > 0).astype(int)
-        val_binary_labels.extend(binary_y)
+print(f"-> Successfully mapped detectors for {len(class_detectors)} attack classes.")
 
-val_mse_scores = np.array(val_mse_scores)
-val_binary_labels = np.array(val_binary_labels)
-
-# Set threshold at the 95th percentile of Nominal validation errors
-nominal_val_mse = val_mse_scores[val_binary_labels == 0]
-threshold = np.percentile(nominal_val_mse, 95)
-print(f"-> Calculated Anomaly Threshold (95th percentile of safe data): {threshold:.4f}")
-
-# Step B: Evaluate the Test Set
-test_mse_scores = []
-test_binary_labels = []
+# --- PHASE 3: MCSS-VAE INFERENCE (GAMMA EQUATION) ---
+print("\nPhase 3: MCSS-VAE Inference (Gamma Evaluation)...")
+test_E_rec = []
+test_D_latent = []
+test_nearest_class = []
+true_labels = []
 
 with torch.no_grad():
     for batch_X, batch_y in test_loader:
-        reconstruction, _, _ = model(batch_X)
+        reconstruction, mu, _ = model(batch_X)
+        
+        # Calculate MSE (E_rec)
         mse_per_seq = torch.mean((batch_X - reconstruction)**2, dim=[1, 2]).numpy()
-        test_mse_scores.extend(mse_per_seq)
-        binary_y = (batch_y.numpy() > 0).astype(int)
-        test_binary_labels.extend(binary_y)
+        test_E_rec.extend(mse_per_seq)
+        true_labels.extend(batch_y.numpy())
+        
+        # Calculate Distance to nearest detector (D_latent)
+        for i in range(len(mu)):
+            z_vector = mu[i].numpy()
+            min_dist = float('inf')
+            closest_class = 0
+            
+            for label, detector_vector in class_detectors.items():
+                dist = np.linalg.norm(z_vector - detector_vector)
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_class = label
+            
+            test_D_latent.append(min_dist)
+            test_nearest_class.append(closest_class)
 
-test_mse_scores = np.array(test_mse_scores)
-test_binary_labels = np.array(test_binary_labels)
+# Normalize metrics to [0, 1]
+scaler_E = MinMaxScaler()
+scaler_D = MinMaxScaler()
 
-# Generate Predictions based on Threshold
-test_preds = (test_mse_scores > threshold).astype(int)
+E_rec_scaled = scaler_E.fit_transform(np.array(test_E_rec).reshape(-1, 1)).flatten()
+D_latent_scaled = scaler_D.fit_transform(np.array(test_D_latent).reshape(-1, 1)).flatten()
 
-print("\n=== BINARY ANOMALY DETECTION REPORT (VAE) ===")
-print(classification_report(test_binary_labels, test_preds, target_names=['Nominal (0)', 'Anomaly (1)']))
-print("\n=== BINARY CONFUSION MATRIX ===")
-print(pd.DataFrame(confusion_matrix(test_binary_labels, test_preds), 
-                   index=['True Nominal', 'True Anomaly'], 
-                   columns=['Pred Nominal', 'Pred Anomaly']))
+# *** THE FIX: INVERT THE LATENT DISTANCE ***
+# Now: Close to attack (low distance) = High Penalty (1.0)
+D_latent_penalty = 1.0 - D_latent_scaled
+
+# --- THE GAMMA EQUATION ---
+for gamma in [0.1, 0.3, 0.5, 0.7, 0.9]:
+    anomaly_scores = (gamma * E_rec_scaled) + ((1 - gamma) * D_latent_penalty)
+    
+    nominal_scores = anomaly_scores[np.array(true_labels) == 0]
+    threshold = np.percentile(nominal_scores, 95)
+    
+    final_predictions = []
+    for i in range(len(anomaly_scores)):
+        if anomaly_scores[i] > threshold:
+            final_predictions.append(test_nearest_class[i])
+        else:
+            final_predictions.append(0)
+            
+    # Quick macro accuracy check
+    acc = np.mean(np.array(final_predictions) == np.array(true_labels))
+    print(f"Gamma {gamma} -> Threshold: {threshold:.4f} | Overall Accuracy: {acc*100:.2f}%")
+
+# Final Reporting
+print("\n=== MULTI-CLASS REPORT (MCSS-VAE HYBRID) ===")
+target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias Attack', 'ZD Attack']
+print(classification_report(true_labels, final_predictions, target_names=target_names))
+print("\n=== CONFUSION MATRIX ===")
+print(pd.DataFrame(confusion_matrix(true_labels, final_predictions), index=target_names, columns=target_names))
