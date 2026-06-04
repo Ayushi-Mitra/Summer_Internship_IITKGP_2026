@@ -160,7 +160,7 @@ class GlobalConvRNNClassifier(nn.Module):
         return out
 
 # Initialize with LSTM by default (change to 'GRU' if desired)
-model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='GRU').to(device)
+model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='LSTM').to(device)
 weights_tensor = weights_tensor.to(device)
 criterion = nn.CrossEntropyLoss(weight=weights_tensor)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)

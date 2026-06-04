@@ -1,4 +1,4 @@
-import os
+import gc
 import pandas as pd
 import numpy as np
 import torch
@@ -7,11 +7,8 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
-import gc
 
-# ==========================================
 # 1. SETUP, FEATURE ENGINEERING & SCALING
-# ==========================================
 print("Loading Unified Dataset...")
 filename = 'TTC_Unified_Final_Dataset.xlsx'
 full_df = pd.read_excel(filename)
@@ -74,9 +71,7 @@ y_test_np = test_df['Label_ID'].values
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
-# ==========================================
 # 2. CGAN ARCHITECTURE (From Paper Methodology)
-# ==========================================
 input_dim = len(feature_cols)
 num_classes = 6
 z_dim = 32 # Noise dimension
@@ -123,9 +118,9 @@ class Discriminator(nn.Module):
         x = torch.cat([features, labels], dim=1)
         return self.net(x)
 
-# ==========================================
+
 # 3. CGAN TRAINING PHASE
-# ==========================================
+
 print("\n--- Phase 1: Training CGAN ---")
 batch_size = 256
 cgan_epochs = 20 # Keep relatively low to prevent mode collapse on balanced data
@@ -188,9 +183,9 @@ for epoch in range(cgan_epochs):
         
     print(f"CGAN Epoch [{epoch+1}/{cgan_epochs}] | D Loss: {d_loss.item():.4f} | G Loss: {g_loss.item():.4f}")
 
-# ==========================================
+
 # 4. SYNTHETIC DATA AUGMENTATION
-# ==========================================
+
 print("\n--- Phase 2: Generating Synthetic Data ---")
 samples_per_class = 5000 # Adds 30,000 total synthetic samples to training set
 synthetic_X, synthetic_y = [], []
@@ -214,9 +209,9 @@ X_train_augmented = np.vstack([X_train_np, *synthetic_X])
 y_train_augmented = np.concatenate([y_train_np, *synthetic_y])
 print(f"Original Train Size: {X_train_np.shape[0]} | Augmented Train Size: {X_train_augmented.shape[0]}")
 
-# ==========================================
+
 # 5. MLP ARCHITECTURE & TRAINING
-# ==========================================
+
 print("\n--- Phase 3: Training MLP Classifier ---")
 
 class MLPClassifier(nn.Module):
@@ -278,9 +273,9 @@ for epoch in range(mlp_epochs):
         best_mlp_val = val_loss
         best_mlp_state = mlp.state_dict().copy()
 
-# ==========================================
+
 # 6. FINAL EVALUATION
-# ==========================================
+
 print("\n--- Phase 4: Final Evaluation on Test Set ---")
 mlp.load_state_dict(best_mlp_state)
 mlp.eval()
