@@ -118,11 +118,9 @@ class Discriminator(nn.Module):
         x = torch.cat([features, labels], dim=1)
         return self.net(x)
 
-
 # 3. CGAN TRAINING PHASE
-
 print("\n--- Phase 1: Training CGAN ---")
-batch_size = 256
+batch_size =120
 cgan_epochs = 20 # Keep relatively low to prevent mode collapse on balanced data
 
 X_train_tensor = torch.tensor(X_train_np, dtype=torch.float32)
@@ -134,8 +132,8 @@ generator = Generator().to(device)
 discriminator = Discriminator().to(device)
 
 criterion_gan = nn.BCELoss()
-optimizer_G = optim.Adam(generator.parameters(), lr=0.0002, betas=(0.5, 0.999))
-optimizer_D = optim.Adam(discriminator.parameters(), lr=0.0002, betas=(0.5, 0.999))
+optimizer_G = optim.Adam(generator.parameters(), lr=0.005, betas=(0.5, 0.999))
+optimizer_D = optim.Adam(discriminator.parameters(), lr=0.005, betas=(0.5, 0.999))
 
 for epoch in range(cgan_epochs):
     for i, (real_features, real_labels) in enumerate(train_loader):
@@ -150,9 +148,7 @@ for epoch in range(cgan_epochs):
         valid = torch.ones(batch_sz, 1).to(device)
         fake = torch.zeros(batch_sz, 1).to(device)
         
-        # -----------------
         # Train Discriminator
-        # -----------------
         optimizer_D.zero_grad()
         
         # Loss for real images
@@ -169,9 +165,7 @@ for epoch in range(cgan_epochs):
         d_loss.backward()
         optimizer_D.step()
         
-        # -----------------
         # Train Generator
-        # -----------------
         optimizer_G.zero_grad()
         
         # G wants D to classify fake features as valid
@@ -183,9 +177,7 @@ for epoch in range(cgan_epochs):
         
     print(f"CGAN Epoch [{epoch+1}/{cgan_epochs}] | D Loss: {d_loss.item():.4f} | G Loss: {g_loss.item():.4f}")
 
-
 # 4. SYNTHETIC DATA AUGMENTATION
-
 print("\n--- Phase 2: Generating Synthetic Data ---")
 samples_per_class = 5000 # Adds 30,000 total synthetic samples to training set
 synthetic_X, synthetic_y = [], []
@@ -209,9 +201,7 @@ X_train_augmented = np.vstack([X_train_np, *synthetic_X])
 y_train_augmented = np.concatenate([y_train_np, *synthetic_y])
 print(f"Original Train Size: {X_train_np.shape[0]} | Augmented Train Size: {X_train_augmented.shape[0]}")
 
-
 # 5. MLP ARCHITECTURE & TRAINING
-
 print("\n--- Phase 3: Training MLP Classifier ---")
 
 class MLPClassifier(nn.Module):
@@ -233,12 +223,12 @@ class MLPClassifier(nn.Module):
 
 mlp = MLPClassifier().to(device)
 criterion_mlp = nn.CrossEntropyLoss()
-optimizer_mlp = optim.Adam(mlp.parameters(), lr=0.001)
+optimizer_mlp = optim.Adam(mlp.parameters(), lr=0.005)
 
 # Load Augmented Data
 aug_dataset = TensorDataset(torch.tensor(X_train_augmented, dtype=torch.float32), 
                             torch.tensor(y_train_augmented, dtype=torch.long))
-aug_loader = DataLoader(aug_dataset, batch_size=256, shuffle=True)
+aug_loader = DataLoader(aug_dataset, batch_size=120, shuffle=True)
 
 # Validation Data
 X_val_tensor = torch.tensor(X_val_np, dtype=torch.float32).to(device)
@@ -273,9 +263,7 @@ for epoch in range(mlp_epochs):
         best_mlp_val = val_loss
         best_mlp_state = mlp.state_dict().copy()
 
-
 # 6. FINAL EVALUATION
-
 print("\n--- Phase 4: Final Evaluation on Test Set ---")
 mlp.load_state_dict(best_mlp_state)
 mlp.eval()
@@ -290,10 +278,5 @@ target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias
 
 print("\n=== CLASSIFICATION REPORT (CGAN-MLP) ===")
 print(classification_report(y_test_np, test_preds, target_names=target_names))
-
 print("\n=== CONFUSION MATRIX ===")
 print(pd.DataFrame(confusion_matrix(y_test_np, test_preds), index=target_names, columns=target_names))
-
-f_measure = f1_score(y_test_np, test_preds, average='macro')
-print("\n=== PAPER METRIC ===")
-print(f"Macro F-measure (FM): {f_measure:.4f}")

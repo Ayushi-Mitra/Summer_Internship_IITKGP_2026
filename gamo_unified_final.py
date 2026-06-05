@@ -139,7 +139,7 @@ class Classifier(nn.Module):
 
 # 3. THREE-PLAYER TRAINING LOOP
 print("\n--- Training 3-Layer Traditional GAMO Network ---")
-batch_size = 256
+batch_size = 120
 epochs = 30 
 
 train_loader = DataLoader(TensorDataset(torch.tensor(X_train_np, dtype=torch.float32), 
@@ -156,9 +156,9 @@ classifier = Classifier().to(device)
 adv_loss_fn = nn.BCELoss()
 cls_loss_fn = nn.CrossEntropyLoss()
 
-opt_G = optim.Adam(generator.parameters(), lr=0.0002)
-opt_D = optim.Adam(discriminator.parameters(), lr=0.0002)
-opt_C = optim.Adam(classifier.parameters(), lr=0.001)
+opt_G = optim.Adam(generator.parameters(), lr=0.005)
+opt_D = optim.Adam(discriminator.parameters(), lr=0.005)
+opt_C = optim.Adam(classifier.parameters(), lr=0.005)
 
 best_val_acc = 0
 best_c_state = None

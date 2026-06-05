@@ -77,8 +77,8 @@ y_train_min = torch.tensor(y_train_np[minority_mask], dtype=torch.long)
 X_train_maj = torch.tensor(X_train_np[majority_mask], dtype=torch.float32)
 y_train_maj = torch.tensor(y_train_np[majority_mask], dtype=torch.long)
 
-min_loader = DataLoader(TensorDataset(X_train_min, y_train_min), batch_size=256, shuffle=True, drop_last=True)
-maj_loader = DataLoader(TensorDataset(X_train_maj, y_train_maj), batch_size=256, shuffle=True, drop_last=True)
+min_loader = DataLoader(TensorDataset(X_train_min, y_train_min), batch_size=120, shuffle=True, drop_last=True)
+maj_loader = DataLoader(TensorDataset(X_train_maj, y_train_maj), batch_size=120, shuffle=True, drop_last=True)
 
 # 3. ACIL ARCHITECTURE
 input_dim = len(feature_cols)
@@ -126,9 +126,9 @@ generator = Generator().to(device)
 discriminator = Discriminator().to(device)
 classifier = Classifier().to(device)
 
-opt_G = optim.Adam(generator.parameters(), lr=0.0002)
-opt_D = optim.Adam(discriminator.parameters(), lr=0.0002)
-opt_C = optim.Adam(classifier.parameters(), lr=0.001)
+opt_G = optim.Adam(generator.parameters(), lr=0.005)
+opt_D = optim.Adam(discriminator.parameters(), lr=0.005)
+opt_C = optim.Adam(classifier.parameters(), lr=0.005)
 
 adv_loss = nn.BCELoss()
 cls_loss = nn.CrossEntropyLoss()
@@ -236,5 +236,5 @@ target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias
 
 print("\n=== CLASSIFICATION REPORT (ACIL) ===")
 print(classification_report(y_test_np, test_preds, target_names=target_names))
-f_measure = f1_score(y_test_np, test_preds, average='macro')
-print(f"Macro F-measure (FM): {f_measure:.4f}")
+print("\n=== CONFUSION MATRIX ===")
+print(pd.DataFrame(confusion_matrix(y_test_np, test_preds), index=target_names, columns=target_names))
