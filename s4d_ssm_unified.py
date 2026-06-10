@@ -8,16 +8,14 @@ from torch.utils.data import DataLoader, TensorDataset
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix
 
-# ==========================================
 # 1. SETUP & UNIFIED DATA LOADING
-# ==========================================
 print("Loading Unified Dataset...")
-filename = 'TTC_Unified_Dataset.xlsx'
+filename = 'TTC_Unified_Dataset_New.csv'
 
 if not os.path.exists(filename):
     raise FileNotFoundError(f"Missing unified dataset: {filename}")
 
-full_df = pd.read_excel(filename)
+full_df = pd.read_csv(filename)
 full_df['Attack_Type'] = full_df['Attack_Type'].astype(str).str.strip()
 
 label_map = {
@@ -29,9 +27,7 @@ full_df['Label_ID'] = full_df['Attack_Type'].map(label_map)
 full_df = full_df.dropna(subset=['Label_ID'])
 full_df['Label_ID'] = full_df['Label_ID'].astype(int)
 
-# ==========================================
 # 2. FEATURE ENGINEERING (STATE CENTERING & DERIVATIVES)
-# ==========================================
 print("Engineering cumulative, derivative, and centered features...")
 
 baseline_df = full_df[full_df['Time_Step'] < 20].groupby(['Run_ID', 'Attack_Type'])['y_k'].mean().reset_index()
@@ -50,17 +46,13 @@ feature_cols = [
     'ACF_Energy', 'CUSUM_r'
 ]
 
-# ==========================================
 # 3. DYNAMIC GRACE PERIOD RELABELING
-# ==========================================
 print("Applying physical grace period logic...")
 full_df.loc[full_df['Time_Step'] < 20, 'Label_ID'] = 0
 slow_attack_mask = full_df['Attack_Type'].isin(['Replay Attack', 'Covert Attack'])
 full_df.loc[slow_attack_mask & (full_df['Time_Step'] < 35), 'Label_ID'] = 0
 
-# ==========================================
 # 4. GROUP-BASED SPLITTING & SCALING 
-# ==========================================
 total_runs = int(full_df['Run_ID'].max())
 train_end, val_end = int(total_runs * 0.70), int(total_runs * 0.85)
 
@@ -77,9 +69,7 @@ train_df[feature_cols] = scaler.fit_transform(train_df[feature_cols])
 val_df[feature_cols]   = scaler.transform(val_df[feature_cols])
 test_df[feature_cols]  = scaler.transform(test_df[feature_cols])
 
-# ==========================================
 # 5. TEMPORAL SLIDING WINDOW SEQUENCE GENERATION
-# ==========================================
 def create_sequences(df, window_size):
     X, y = [], []
     for _, group in df.groupby(['Run_ID', 'Attack_Type']):
@@ -104,9 +94,7 @@ class_counts = np.bincount(y_train.numpy(), minlength=num_classes)
 safe_counts = np.where(class_counts == 0, 1, class_counts)
 weights_tensor = torch.tensor(len(y_train) / (num_classes * safe_counts), dtype=torch.float32)
 
-# ==========================================
 # 6. NEURAL NETWORK SPECIFICATION: S4D (STATE SPACE MODEL)
-# ==========================================
 class S4D(nn.Module):
     def __init__(self, d_model, d_state=64):
         super().__init__()
@@ -240,9 +228,7 @@ optimizer = torch.optim.Adam(
 # The optimal static Lambda established by the ablation study
 lambda_c = 0.01
 
-# ==========================================
 # 7. TRAINING LOOP WITH DUAL LOSS
-# ==========================================
 epochs = 15
 best_val_loss = float('inf')
 best_model_state = None
@@ -294,9 +280,7 @@ for epoch in range(epochs):
         best_val_loss = current_val_loss
         best_model_state = model.state_dict().copy()
 
-# ==========================================
 # 8. COMPREHENSIVE PERFORMANCE VERIFICATION
-# ==========================================
 print("\nExecuting final evaluation on Test Set...")
 
 if best_model_state is not None:

@@ -420,7 +420,7 @@ print("="*50)
 
 meta_learner = LogisticRegression(
     max_iter=1000,
-    multi_class='auto',
+    solver='lbfgs',
     random_state=42,
     class_weight='balanced'
 )

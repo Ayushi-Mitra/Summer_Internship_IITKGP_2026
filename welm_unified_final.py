@@ -7,8 +7,8 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score
 
 # 1. SETUP, FEATURE ENGINEERING & SCALING
 print("Loading Unified Dataset...")
-filename = 'TTC_Unified_Final_Dataset.xlsx'
-full_df = pd.read_excel(filename)
+filename = 'TTC_Unified_Dataset_New.csv'
+full_df = pd.read_csv(filename)
 full_df['Attack_Type'] = full_df['Attack_Type'].astype(str).str.strip()
 
 label_map = {'Nominal': 0, 'Replay Attack': 1, 'Covert Attack': 2, 

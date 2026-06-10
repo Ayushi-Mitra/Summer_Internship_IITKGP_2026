@@ -10,12 +10,12 @@ import gc
 
 # 1. SETUP & UNIFIED DATA LOADING
 print("Loading Unified Dataset...")
-filename = 'TTC_Unified_Final_Dataset.xlsx' # Switch to .csv if needed for memory
+filename = 'TTC_Unified_Dataset_New.csv' # Switch to .csv if needed for memory
 
 if not os.path.exists(filename):
     raise FileNotFoundError(f"Missing unified dataset: {filename}")
 
-full_df = pd.read_excel(filename)
+full_df = pd.read_csv(filename)
 full_df['Attack_Type'] = full_df['Attack_Type'].astype(str).str.strip()
 
 label_map = {
@@ -160,7 +160,7 @@ class GlobalConvRNNClassifier(nn.Module):
         return out
 
 # Initialize with LSTM by default (change to 'GRU' if desired)
-model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='GRU').to(device)
+model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='LSTM').to(device)
 weights_tensor = weights_tensor.to(device)
 criterion = nn.CrossEntropyLoss(weight=weights_tensor)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
@@ -170,7 +170,7 @@ epochs = 30
 best_val_loss = float('inf')
 best_model_state = None
 
-print(f"\nTraining Baseline Conv1D+GRU on {len(X_train)} full sequences...")
+print(f"\nTraining Baseline Conv1D+LSTM on {len(X_train)} full sequences...")
 
 for epoch in range(epochs):
     model.train()
@@ -232,7 +232,7 @@ with torch.no_grad():
 
 target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias Attack', 'ZD Attack']
 
-print("\n=== BASELINE CLASSIFICATION REPORT (CNN+GRU) ===")
+print("\n=== BASELINE CLASSIFICATION REPORT (CNN+LSTM) ===")
 print(classification_report(all_labels, all_preds, target_names=target_names))
 print("\n=== CONFUSION MATRIX ===")
 print(pd.DataFrame(confusion_matrix(all_labels, all_preds), index=target_names, columns=target_names))
