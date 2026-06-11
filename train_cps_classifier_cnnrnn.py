@@ -54,7 +54,7 @@ gc.collect()
 
 feature_cols = [
     'y_deviation', 'Delta_y', 'Delta_g', 'Slope_10', 'Slope_20', 
-    'r_k', 'g_k', 'Mean_g', 'Var_g', 
+    'r_k', 'g_k', 'Mean_g', 'Var_g', 'K_Attack',
     'Lag1_ACF_r', 'Lag2_ACF_r', 'Lag3_ACF_r', 'Lag4_ACF_r', 'Lag5_ACF_r', 'Lag6_ACF_r', 
     'ACF_Energy', 'CUSUM_r'
 ]
@@ -160,7 +160,7 @@ class GlobalConvRNNClassifier(nn.Module):
         return out
 
 # Initialize with LSTM by default (change to 'GRU' if desired)
-model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='LSTM').to(device)
+model = GlobalConvRNNClassifier(input_dim=len(feature_cols), hidden_dim=128, num_classes=num_classes, rnn_type='GRU').to(device)
 weights_tensor = weights_tensor.to(device)
 criterion = nn.CrossEntropyLoss(weight=weights_tensor)
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0005, weight_decay=1e-4)
@@ -170,7 +170,7 @@ epochs = 30
 best_val_loss = float('inf')
 best_model_state = None
 
-print(f"\nTraining Baseline Conv1D+LSTM on {len(X_train)} full sequences...")
+print(f"\nTraining Baseline Conv1D+GRU on {len(X_train)} full sequences...")
 
 for epoch in range(epochs):
     model.train()
@@ -232,7 +232,7 @@ with torch.no_grad():
 
 target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias Attack', 'ZD Attack']
 
-print("\n=== BASELINE CLASSIFICATION REPORT (CNN+LSTM) ===")
+print("\n=== BASELINE CLASSIFICATION REPORT (CNN+GRU) ===")
 print(classification_report(all_labels, all_preds, target_names=target_names))
 print("\n=== CONFUSION MATRIX ===")
 print(pd.DataFrame(confusion_matrix(all_labels, all_preds), index=target_names, columns=target_names))
