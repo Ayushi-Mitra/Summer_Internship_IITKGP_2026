@@ -1,1 +1,15 @@
-TTC_Unified_Dataset_New.csv
+# Datasets
+*.csv
+*.xlsx
+
+# Model weights
+*.pth
+*.pt
+*.h5
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/

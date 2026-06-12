@@ -10,7 +10,7 @@ import gc
 
 # 1. SETUP & UNIFIED DATA LOADING
 print("Loading Unified Dataset...")
-filename = 'TTC_Unified_Dataset_New.csv' # Switch to .csv if needed for memory
+filename = 'TTC_Unified_Dataset_Large.csv' # Switch to .csv if needed for memory
 
 if not os.path.exists(filename):
     raise FileNotFoundError(f"Missing unified dataset: {filename}")
@@ -54,7 +54,7 @@ gc.collect()
 
 feature_cols = [
     'y_deviation', 'Delta_y', 'Delta_g', 'Slope_10', 'Slope_20', 
-    'r_k', 'g_k', 'Mean_g', 'Var_g', 'K_Attack',
+    'r_k', 'g_k', 'Mean_g', 'Var_g',
     'Lag1_ACF_r', 'Lag2_ACF_r', 'Lag3_ACF_r', 'Lag4_ACF_r', 'Lag5_ACF_r', 'Lag6_ACF_r', 
     'ACF_Energy', 'CUSUM_r'
 ]
