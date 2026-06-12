@@ -10,12 +10,12 @@ import gc
 
 # 1. SETUP & UNIFIED DATA LOADING
 print("Loading Unified Dataset...")
-filename = 'TTC_Unified_Final_Dataset.xlsx' # Switch to .csv if needed for memory
+filename = 'TTC_Unified_Dataset_New.csv'  # Switch to .csv if needed for memory
 
 if not os.path.exists(filename):
     raise FileNotFoundError(f"Missing unified dataset: {filename}")
 
-full_df = pd.read_excel(filename)
+full_df = pd.read_csv(filename)
 full_df['Attack_Type'] = full_df['Attack_Type'].astype(str).str.strip()
 
 label_map = {

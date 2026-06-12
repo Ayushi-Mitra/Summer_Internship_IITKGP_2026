@@ -6,16 +6,14 @@ from sklearn.metrics import classification_report, confusion_matrix, f1_score
 from sklearn.ensemble import RandomForestClassifier
 import gc
 
-# ==========================================
 # 1. SETUP & UNIFIED DATA LOADING
-# ==========================================
 print("Loading Unified Dataset...")
-filename = 'TTC_Unified_Final_Dataset.xlsx' # Switch to .csv if needed for memory
+filename = 'TTC_Unified_Dataset_New.csv' # Switch to .csv if needed for memory
 
 if not os.path.exists(filename):
     raise FileNotFoundError(f"Missing unified dataset: {filename}")
 
-full_df = pd.read_excel(filename)
+full_df = pd.read_csv(filename)
 full_df['Attack_Type'] = full_df['Attack_Type'].astype(str).str.strip()
 
 label_map = {
@@ -27,9 +25,7 @@ full_df['Label_ID'] = full_df['Attack_Type'].map(label_map)
 full_df = full_df.dropna(subset=['Label_ID'])
 full_df['Label_ID'] = full_df['Label_ID'].astype(int)
 
-# ==========================================
 # 2. MEMORY-OPTIMIZED FEATURE ENGINEERING
-# ==========================================
 print("Engineering features (Memory Optimized Mode)...")
 
 baseline_mask = full_df['Time_Step'] < 20
@@ -61,16 +57,12 @@ feature_cols = [
     'ACF_Energy', 'CUSUM_r'
 ]
 
-# ==========================================
 # 3. DYNAMIC GRACE PERIOD
-# ==========================================
 full_df.loc[full_df['Time_Step'] < 20, 'Label_ID'] = 0
 slow_attack_mask = full_df['Attack_Type'].isin(['Replay Attack', 'Covert Attack'])
 full_df.loc[slow_attack_mask & (full_df['Time_Step'] < 35), 'Label_ID'] = 0
 
-# ==========================================
 # 4. DATA SPLITTING & SCALING (2D Tabular Format)
-# ==========================================
 total_runs = int(full_df['Run_ID'].max())
 train_end, val_end = int(total_runs * 0.70), int(total_runs * 0.85)
 
@@ -92,39 +84,63 @@ y_test = test_df['Label_ID'].values
 del train_val_df, full_df
 gc.collect()
 
-# ==========================================
 # 5. RANDOM FOREST BAGGING (Testing 3, 5, 7 Subsets)
-# ==========================================
 print("\n" + "="*50)
 print("Evaluating Random Forest Bagging (Paper Subsets)")
 print("="*50)
 
-subset_list = [3, 5, 7]
 target_names = ['Nominal', 'Replay Attack', 'Covert Attack', 'FDI Attack', 'Bias Attack', 'ZD Attack']
+# subset_list = [3, 5, 7]
 
-for n_subsets in subset_list:
-    print(f"\n--- Training RF with {n_subsets} Subsets (Estimators) ---")
+# for n_subsets in subset_list:
+#     print(f"\n--- Training RF with {n_subsets} Subsets (Estimators) ---")
     
-    # Initialize Random Forest
-    rf_model = RandomForestClassifier(
-        n_estimators=n_subsets,  # Maps directly to the paper's 3, 5, 7 subsets
-        max_depth=None,          # Allow trees to capture deep, sharp boundaries
-        bootstrap=True,          # Ensures each subset is a random bag of data
-        max_samples=0.8,         # Each subset uses 80% of the data
-        n_jobs=-1,               # Use all CPU cores for speed
-        random_state=42
-    )
+#     # Initialize Random Forest
+#     rf_model = RandomForestClassifier(
+#         n_estimators=n_subsets,  # Maps directly to the paper's 3, 5, 7 subsets
+#         max_depth=None,          # Allow trees to capture deep, sharp boundaries
+#         bootstrap=True,          # Ensures each subset is a random bag of data
+#         max_samples=0.8,         # Each subset uses 80% of the data
+#         n_jobs=-1,               # Use all CPU cores for speed
+#         random_state=42
+#     )
     
-    rf_model.fit(X_train, y_train)
-    test_preds = rf_model.predict(X_test)
+#     rf_model.fit(X_train, y_train)
+#     test_preds = rf_model.predict(X_test)
     
-    # Calculate and Print F1 Score
-    f_measure = f1_score(y_test, test_preds, average='macro')
-    print(f"Macro F-measure (FM): {f_measure:.4f}")
+#     # Calculate and Print F1 Score
+#     f_measure = f1_score(y_test, test_preds, average='macro')
+#     print(f"Macro F-measure (FM): {f_measure:.4f}")
     
-    # Print the full classification report for detailed analysis
-    print(classification_report(y_test, test_preds, target_names=target_names))
+#     # Print the full classification report for detailed analysis
+#     print(classification_report(y_test, test_preds, target_names=target_names))
 
-    print(f"\n=== CONFUSION MATRIX ({n_subsets} Subsets) ===")
-    # Prints the confusion matrix for the model
-    print(pd.DataFrame(confusion_matrix(y_test, test_preds), index=target_names, columns=target_names))
+#     print(f"\n=== CONFUSION MATRIX ({n_subsets} Subsets) ===")
+#     # Prints the confusion matrix for the model
+#     print(pd.DataFrame(confusion_matrix(y_test, test_preds), index=target_names, columns=target_names))
+
+print(f"\n--- Training RF with 100 Subsets (Estimators) ---")
+    
+# Initialize Random Forest
+rf_model = RandomForestClassifier(
+    n_estimators=100,  
+    max_depth=None,          # Allow trees to capture deep, sharp boundaries
+    bootstrap=True,          # Ensures each subset is a random bag of data
+    max_samples=0.8,         # Each subset uses 80% of the data
+    n_jobs=-1,               # Use all CPU cores for speed
+    random_state=42
+)
+    
+rf_model.fit(X_train, y_train)
+test_preds = rf_model.predict(X_test)
+    
+# Calculate and Print F1 Score
+f_measure = f1_score(y_test, test_preds, average='macro')
+print(f"Macro F-measure (FM): {f_measure:.4f}")
+    
+# Print the full classification report for detailed analysis
+print(classification_report(y_test, test_preds, target_names=target_names))
+
+print(f"\n=== CONFUSION MATRIX (100 Subsets) ===")
+ # Prints the confusion matrix for the model
+print(pd.DataFrame(confusion_matrix(y_test, test_preds), index=target_names, columns=target_names))
